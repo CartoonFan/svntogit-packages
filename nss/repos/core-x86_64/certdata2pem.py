@@ -38,58 +38,58 @@ def printable_serial(obj):
 in_data, in_multiline, in_obj = False, False, False
 field, ftype, value, binval, obj = None, None, None, bytearray(), dict()
 for line in open('certdata.txt', 'r'):
-    # Ignore the file header.
-    if not in_data:
-        if line.startswith('BEGINDATA'):
-            in_data = True
-        continue
-    # Ignore comment lines.
-    if line.startswith('#'):
-        continue
+  # Ignore the file header.
+  if not in_data:
+      if line.startswith('BEGINDATA'):
+          in_data = True
+      continue
+  # Ignore comment lines.
+  if line.startswith('#'):
+      continue
     # Empty lines are significant if we are inside an object.
-    if in_obj and len(line.strip()) == 0:
-        objects.append(obj)
-        obj = dict()
-        in_obj = False
-        continue
-    if len(line.strip()) == 0:
-        continue
-    if in_multiline:
-        if not line.startswith('END'):
-            if ftype == 'MULTILINE_OCTAL':
-                line = line.strip()
-                for i in re.finditer(r'\\([0-3][0-7][0-7])', line):
-                    integ = int(i.group(1), 8)
-                    binval.extend((integ).to_bytes(1, sys.byteorder))
-                obj[field] = binval
-            else:
-                value += line
-                obj[field] = value
-            continue
-        in_multiline = False
-        continue
-    if line.startswith('CKA_CLASS'):
-        in_obj = True
-    line_parts = line.strip().split(' ', 2)
-    if len(line_parts) > 2:
-        field, ftype = line_parts[0:2]
-        value = ' '.join(line_parts[2:])
-    elif len(line_parts) == 2:
-        field, ftype = line_parts
-        value = None
-    else:
-        raise NotImplementedError('line_parts < 2 not supported.\n' + line)
-    if ftype == 'MULTILINE_OCTAL':
-        in_multiline = True
-        value = ""
-        binval = bytearray()
-        continue
-    obj[field] = value
-if len(list(obj.items())) > 0:
+  if in_obj and len(line.strip()) == 0:
     objects.append(obj)
+    obj = {}
+    in_obj = False
+    continue
+  if len(line.strip()) == 0:
+      continue
+  if in_multiline:
+      if not line.startswith('END'):
+          if ftype == 'MULTILINE_OCTAL':
+              line = line.strip()
+              for i in re.finditer(r'\\([0-3][0-7][0-7])', line):
+                  integ = int(i.group(1), 8)
+                  binval.extend((integ).to_bytes(1, sys.byteorder))
+              obj[field] = binval
+          else:
+              value += line
+              obj[field] = value
+          continue
+      in_multiline = False
+      continue
+  if line.startswith('CKA_CLASS'):
+      in_obj = True
+  line_parts = line.strip().split(' ', 2)
+  if len(line_parts) > 2:
+    field, ftype = line_parts[:2]
+    value = ' '.join(line_parts[2:])
+  elif len(line_parts) == 2:
+      field, ftype = line_parts
+      value = None
+  else:
+    raise NotImplementedError('line_parts < 2 not supported.\n' + line)
+  if ftype == 'MULTILINE_OCTAL':
+      in_multiline = True
+      value = ""
+      binval = bytearray()
+      continue
+  obj[field] = value
+if list(obj.items()):
+  objects.append(obj)
 
 # Build up trust database.
-trustmap = dict()
+trustmap = {}
 for obj in objects:
     if obj['CKA_CLASS'] != 'CKO_NSS_TRUST':
         continue
@@ -98,7 +98,7 @@ for obj in objects:
     print(" added trust", key)
 
 # Build up cert database.
-certmap = dict()
+certmap = {}
 for obj in objects:
     if obj['CKA_CLASS'] != 'CKO_CERTIFICATE':
         continue
@@ -107,37 +107,37 @@ for obj in objects:
     print(" added cert", key)
 
 def obj_to_filename(obj):
-    label = obj['CKA_LABEL'][1:-1]
-    label = label.replace('/', '_')\
-        .replace(' ', '_')\
-        .replace('(', '=')\
-        .replace(')', '=')\
-        .replace(',', '_')
-    labelbytes = bytearray()
-    i = 0
-    imax = len(label)
-    while i < imax:
-        if i < imax-3 and label[i] == '\\' and label[i+1] == 'x':
-            labelbytes.extend(bytes.fromhex(label[i+2:i+4]))
-            i += 4
-            continue
-        labelbytes.extend(str.encode(label[i]))
-        i = i+1
+  label = obj['CKA_LABEL'][1:-1]
+  label = label.replace('/', '_')\
+      .replace(' ', '_')\
+      .replace('(', '=')\
+      .replace(')', '=')\
+      .replace(',', '_')
+  labelbytes = bytearray()
+  i = 0
+  imax = len(label)
+  while i < imax:
+    if i < imax-3 and label[i] == '\\' and label[i+1] == 'x':
+        labelbytes.extend(bytes.fromhex(label[i+2:i+4]))
+        i += 4
         continue
-    label = labelbytes.decode('utf-8')
-    serial = printable_serial(obj)
-    return label + ":" + serial
+    labelbytes.extend(str.encode(label[i]))
+    i += 1
+    continue
+  label = labelbytes.decode('utf-8')
+  serial = printable_serial(obj)
+  return f'{label}:{serial}'
 
 def write_cert_ext_to_file(f, oid, value, public_key):
-    f.write("[p11-kit-object-v1]\n")
-    f.write("label: ");
-    f.write(tobj['CKA_LABEL'])
-    f.write("\n")
-    f.write("class: x-certificate-extension\n");
-    f.write("object-id: " + oid + "\n")
-    f.write("value: \"" + value + "\"\n")
-    f.write("modifiable: false\n");
-    f.write(public_key)
+  f.write("[p11-kit-object-v1]\n")
+  f.write("label: ");
+  f.write(tobj['CKA_LABEL'])
+  f.write("\n")
+  f.write("class: x-certificate-extension\n");
+  f.write(f'object-id: {oid}' + "\n")
+  f.write("value: \"" + value + "\"\n")
+  f.write("modifiable: false\n");
+  f.write(public_key)
 
 trust_types = {
   "CKA_TRUST_DIGITAL_SIGNATURE": "digital-signature",
